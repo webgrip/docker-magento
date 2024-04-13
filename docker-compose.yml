@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  nginx:
+    build:
+      context: ./images/nginx/1.18
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+      - "443:443" #Set to auto for auto-detection
+    volumes:
+      - ./path/to/website:/var/www/html
+      - ssldata:/etc/nginx/certs
+    healthcheck:
+      test: curl --fail http://localhost/ || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  ssldata:
