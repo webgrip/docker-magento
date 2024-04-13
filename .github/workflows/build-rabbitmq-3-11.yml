@@ -30,5 +30,5 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            markoshust/magento-rabbitmq:3.11
-            markoshust/magento-rabbitmq:3.11-1
+            webgrip/magento-rabbitmq:3.11
+            webgrip/magento-rabbitmq:3.11-1

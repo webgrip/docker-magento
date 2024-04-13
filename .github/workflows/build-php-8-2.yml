@@ -30,5 +30,5 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            markoshust/magento-php:8.2-fpm
-            markoshust/magento-php:8.2-fpm-2
+            webgrip/magento-php:8.2-fpm
+            webgrip/magento-php:8.2-fpm-2
