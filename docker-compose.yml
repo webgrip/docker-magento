@@ -17,6 +17,12 @@ services:
       timeout: 10s
       retries: 3
     restart: unless-stopped
+  php:
+    build:
+      context: ./images/php/8.2
+      dockerfile: Dockerfile
+    depends_on:
+      - nginx
 
 volumes:
   ssldata:

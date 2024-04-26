@@ -1,107 +1,75 @@
-FROM php:8.2-fpm-bookworm
-MAINTAINER Mark Shust <mark@shust.com>
+# Base stage for common setup
+FROM php:8.2-fpm-alpine AS base
+LABEL maintainer="Ryan Grippeling <ryan@webgrip.com>"
 
-ARG APP_ID=1000
-RUN groupadd -g "$APP_ID" app \
-  && useradd -g "$APP_ID" -u "$APP_ID" -d /var/www -s /bin/bash app
+# Set PHP extensions versions via ARG to ensure they're available in all stages
+ARG IMAGICK_VERSION=3.7.0
+ARG REDIS_VERSION=6.0.2
+ARG SSH2_VERSION=1.3.1
 
-RUN mkdir -p /etc/nginx/html /var/www/html /sock \
-  && chown -R app:app /etc/nginx /var/www /usr/local/etc/php/conf.d /sock
+# Environment configuration for consistent user setup across stages
+ENV APP_USER=app \
+    APP_GROUP=app \
+    APP_UID=1000 \
+    APP_GID=1000
 
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+RUN addgroup -g "${APP_GID}" "${APP_GROUP}" && \
+    adduser -G "${APP_GROUP}" -u "${APP_UID}" -h /var/www -s /bin/bash -S "${APP_USER}"
 
-RUN apt-get update && apt-get install -y \
-    cron \
-    default-mysql-client \
-    git \
-    gnupg \
-    gzip \
-    libbz2-dev \
-    libfreetype6-dev \
-    libicu-dev \
-    libjpeg62-turbo-dev \
-    libmagickwand-dev \
-    libmcrypt-dev \
-    libonig-dev \
-    libpng-dev \
-    libsodium-dev \
-    libssh2-1-dev \
-    libwebp-dev \
-    libxslt1-dev \
-    libzip-dev \
-    lsof \
-    mailutils \
-    msmtp \
-    nodejs \
-    procps \
-    strace \
-    vim \
-    zip \
-    zlib1g-dev \
-  && rm -rf /var/lib/apt/lists/*
+# Builder stage to compile and install PHP extensions
+FROM base AS builder
 
-RUN pecl channel-update pecl.php.net && pecl install \
-    imagick-3.7.0 \
-    redis-6.0.2 \
-    ssh2-1.3.1 \
-    xdebug-3.3.1 \
-  && pecl clear-cache \
-  && rm -rf /tmp/pear
+# Install packages required for building PHP extensions
+#RUN apk --no-cache add autoconf g++ make bash curl libpng-dev libjpeg-turbo-dev libwebp-dev \
+#    gettext-dev icu-dev libxslt-dev zlib-dev libzip-dev freetype-dev bzip2-dev \
+#    linux-headers oniguruma-dev libsodium-dev openssl-dev pcre-dev \
+#    imagemagick imagemagick-dev libssh2 libssh2-dev php-redis#
 
-RUN docker-php-ext-configure \
-    gd --with-freetype --with-jpeg --with-webp \
-  && docker-php-ext-install \
-    bcmath \
-    bz2 \
-    calendar \
-    exif \
-    gd \
-    gettext \
-    intl \
-    mbstring \
-    mysqli \
-    opcache \
-    pcntl \
-    pdo_mysql \
-    soap \
-    sockets \
-    sodium \
-    sysvmsg \
-    sysvsem \
-    sysvshm \
-    xsl \
-    zip \
-  && docker-php-ext-enable \
-    imagick \
-    redis \
-    ssh2 \
-    xdebug
+RUN apk --no-cache add autoconf g++ make bash curl libpng libjpeg-turbo libwebp \
+    gettext icu libxslt zlib libzip freetype bzip2 \
+    linux-headers oniguruma libsodium openssl pcre \
+    imagemagick libssh2 php-redis libbz2 libpng-dev libjpeg-turbo-dev libwebp-dev \
+    gettext-dev icu-dev libxslt-dev zlib-dev libzip-dev freetype-dev bzip2-dev \
+    linux-headers oniguruma-dev libsodium-dev openssl-dev pcre-dev \
+    imagemagick-dev libssh2-dev libintl #libicu libexslt
 
-RUN version=$(php -r "echo PHP_MAJOR_VERSION.PHP_MINOR_VERSION;") \
-    && architecture=$(uname -m) \
-    && curl -A "Docker" -o /tmp/blackfire-probe.tar.gz -D - -L -s https://blackfire.io/api/v1/releases/probe/php/linux/$architecture/$version \
-    && mkdir -p /tmp/blackfire \
-    && tar zxpf /tmp/blackfire-probe.tar.gz -C /tmp/blackfire \
-    && mv /tmp/blackfire/blackfire-*.so $(php -r "echo ini_get ('extension_dir');")/blackfire.so \
-    && rm -rf /tmp/blackfire /tmp/blackfire-probe.tar.gz
 
-RUN git clone --branch v0.4.15 --depth=1 https://github.com/NoiseByNorthwest/php-spx.git /usr/lib/php-spx \
-    && cd /usr/lib/php-spx \
-    && phpize \
-    && ./configure \
-    && make \
-    && make install
+# Configure PHP extensions to use support for additional libraries
+RUN docker-php-ext-configure gd --with-jpeg --with-freetype --with-webp && \
+    docker-php-ext-configure intl && \
+    docker-php-ext-configure gettext
 
-RUN curl -sS https://getcomposer.org/installer | \
-  php -- --version=2.6.6 --install-dir=/usr/local/bin --filename=composer
+# Install PHP extensions
+RUN docker-php-ext-install -j"$(nproc)" gd intl gettext bcmath bz2 ctype calendar dom exif \
+    fileinfo filter mbstring opcache pdo_mysql simplexml soap sockets sodium sysvmsg sysvsem \
+    sysvshm xmlwriter xsl zip
 
-COPY conf/blackfire.ini $PHP_INI_DIR/conf.d/blackfire.ini
-COPY conf/spx.ini $PHP_INI_DIR/conf.d/spx.ini
-COPY conf/msmtprc /etc/msmtprc
-COPY conf/php.ini $PHP_INI_DIR
-COPY conf/php-fpm.conf /usr/local/etc/
-COPY conf/www.conf /usr/local/etc/php-fpm.d/
+# Install and enable PECL extensions
+RUN pecl install \
+    imagick-${IMAGICK_VERSION} \
+    redis-${REDIS_VERSION} \
+    ssh2-${SSH2_VERSION} && \
+    pecl clear-cache && \
+    docker-php-ext-enable imagick redis ssh2
 
-USER app:app
+# Deployment stage copies built extensions and binaries to a lean production image
+FROM base AS production
+
+# Copy installed PHP extensions from builder stage
+COPY --from=builder /usr/local/lib/php/extensions /usr/local/lib/php/extensions
+COPY --from=builder /usr/local/etc/php/conf.d /usr/local/etc/php/conf.d
+
+COPY --from=builder /usr/lib/ /usr/lib/
+
+# Set appropriate permissions and ownership
+RUN chown -R ${APP_USER}:${APP_GROUP} /usr/local/lib/php/extensions
+
+# Switch to non-root user for security
+USER "${APP_USER}:${APP_GROUP}"
+
+# Define volume for application mount and set working directory
 VOLUME /var/www
 WORKDIR /var/www/html
+
+FROM production as development
+USER root:root
