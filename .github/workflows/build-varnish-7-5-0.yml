@@ -1,6 +1,9 @@
 name: build-php-8-3
 
-on: workflow_dispatch
+on:
+  push:
+    branches:
+      - feature/webgrip
 
 jobs:
   php-8-3:
