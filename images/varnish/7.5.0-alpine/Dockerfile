@@ -5,7 +5,7 @@ FROM alpine:3.19.1
 RUN apk add --no-cache varnish
 
 # Copy Varnish configuration from the project directory
-COPY ../default.vcl /etc/varnish/default.vcl
+COPY ./default.vcl /etc/varnish/default.vcl
 
 # Expose port 6081 for Varnish HTTP traffic
 EXPOSE 6081
