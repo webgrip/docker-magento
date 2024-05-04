@@ -1,0 +1,195 @@
+FROM php:8.2-fpm-alpine AS base
+LABEL maintainer="Ryan Grippeling <ryan@webgrip.com>"
+
+ARG IMAGICK_VERSION=3.7.0
+ARG REDIS_VERSION=6.0.2
+ARG SSH2_VERSION=1.3.1
+
+ENV APP_USER=app \
+    APP_GROUP=app \
+    APP_UID=1000 \
+    APP_GID=1000
+
+RUN addgroup -g "${APP_GID}" "${APP_GROUP}" && \
+    adduser -G "${APP_GROUP}" -u "${APP_UID}" -h /var/www -s /bin/bash -S "${APP_USER}" && \
+    mkdir -p /etc/nginx/html /var/www/html /sock && \
+    chown -R "${APP_USER}:${APP_GROUP}" /etc/nginx /var/www /usr/local/etc/php/conf.d /sock
+
+FROM base AS builder
+
+RUN set -eux; \
+	apk add --no-cache \
+# in theory, docker-entrypoint.sh is POSIX-compliant, but priority is a working, consistent image
+		bash \
+# Ghostscript is required for rendering PDF previews
+		ghostscript \
+# Alpine package for "imagemagick" contains ~120 .so files, see: https://github.com/docker-library/wordpress/pull/497
+		imagemagick \
+        curl \
+        git \
+        unzip \
+        zip \
+        gzip \
+        lsof \
+        strace \
+        procps \
+	;
+
+ #install the PHP extensions we need (https://make.wordpress.org/hosting/handbook/handbook/server-environment/#php-extensions)
+RUN set -ex; \
+	\
+	apk add --no-cache --virtual .build-deps \
+		$PHPIZE_DEPS \
+        autoconf \
+        bzip2-dev \
+        freetype-dev \
+        gettext \
+        gettext-dev \
+        gnupg \
+        g++ \
+        icu-dev \
+        libjpeg-turbo-dev \
+        libpng-dev \
+        libwebp-dev \
+        imagemagick \
+        imagemagick-dev \
+        libmcrypt-dev \
+        libsodium-dev \
+        libssh2-dev \
+        libxslt-dev \
+        libzip-dev \
+        linux-headers \
+        msmtp \
+        mysql-client \
+        nodejs \
+        openssl-dev \
+        oniguruma-dev \
+        pcre-dev \
+        zlib-dev
+
+RUN docker-php-ext-configure gd --with-jpeg --with-freetype --with-webp
+RUN docker-php-ext-configure intl
+RUN docker-php-ext-configure gettext
+
+RUN	docker-php-ext-install -j "$(nproc)" \
+    bcmath \
+    bz2 \
+    ctype \
+    calendar \
+    dom \
+    exif \
+    fileinfo \
+    filter \
+    gd \
+    gettext \
+    intl \
+    mbstring \
+    opcache \
+    pcntl \
+    pdo_mysql \
+    simplexml \
+    soap \
+    sockets \
+    sodium \
+    sysvmsg \
+    sysvsem \
+    sysvshm \
+    xmlwriter \
+    xsl \
+    zip
+
+#spl These are probably all in php already, but still need to check
+#pcre \
+#openssl \
+#libxml \
+#opcache \
+
+#tokenizer #No rule to make target '/usr/src/php/ext/tokenizer/Zend/zend_language_parser.y', needed by '/usr/src/php/ext/tokenizer/Zend/zend_language_parser.c'.  Stop
+
+RUN pecl channel-update pecl.php.net && \
+    pecl install \
+      imagick-${IMAGICK_VERSION} \
+      redis-${REDIS_VERSION} \
+      ssh2-${SSH2_VERSION} \
+    && pecl clear-cache \
+    && rm -rf /tmp/pear
+
+
+RUN extDir="$(php -r 'echo ini_get("extension_dir");')"; \
+    runDeps="$( \
+		scanelf --needed --nobanner --format '%n#p' --recursive "$extDir" \
+			| tr ',' '\n' \
+			| sort -u \
+			| awk 'system("[ -e /usr/local/lib/" $1 " ]") == 0 { next } { print "so:" $1 }' \
+	)";
+
+RUN apk add --no-network --virtual .php-rundeps $runDeps; \
+    apk del --no-network .build-deps;
+
+RUN ! { ldd "$extDir"/*.so | grep 'not found'; }; \
+    # check for output like "PHP Warning:  PHP Startup: Unable to load dynamic library 'foo' (tried: ...)
+    err="$(php --version 3>&1 1>&2 2>&3)"; \
+    [ -z "$err" ]
+
+RUN docker-php-ext-enable \
+    imagick \
+    redis \
+    ssh2
+
+FROM builder AS composer
+RUN curl -sS https://getcomposer.org/installer | \
+  php -- --version=2.7.2 --install-dir=/usr/local/bin --filename=composer
+
+FROM base AS production
+USER "${APP_USER}":"${APP_GROUP}"
+
+COPY --from=builder /usr/local/lib/php/extensions /usr/local/lib/php/extensions
+#RUN echo 'extension_dir="/usr/local/lib/php/extensions/no-debug-non-zts-20220829"' > /usr/local/etc/php/conf.d/php-extensions.ini
+COPY --from=builder $PHP_INI_DIR/conf.d/* $PHP_INI_DIR/conf.d/
+COPY --from=composer /usr/local/bin/composer /usr/local/bin/composer
+
+USER root
+RUN chmod +x /usr/local/lib/php/extensions/no-debug-non-zts-20220829/*.so
+RUN chown -R ${APP_USER}:${APP_GROUP} /usr/local/lib/php/extensions
+USER "${APP_USER}":"${APP_GROUP}"
+
+#COPY conf/blackfire.ini $PHP_INI_DIR/conf.d/blackfire.ini
+#COPY conf/spx.ini $PHP_INI_DIR/conf.d/spx.ini
+COPY conf/msmtprc /etc/msmtprc
+COPY conf/php-fpm.conf /usr/local/etc/
+COPY conf/www.conf /usr/local/etc/php-fpm.d/
+
+COPY conf/php.production.ini $PHP_INI_DIR
+
+VOLUME /var/www
+WORKDIR /var/www/html
+
+FROM production AS development
+USER "${APP_USER}":"${APP_GROUP}"
+
+#USER root
+
+#RUN apk --no-cache add pcre-dev linux-headers ${PHPIZE_DEPS} \
+#    && pecl channel-update pecl.php.net \
+#    && pecl install xdebug \
+#    && pecl clear-cache \
+#    && rm -rf /tmp/pear
+#
+#RUN docker-php-ext-enable xdebug
+
+#RUN version=$(php -r "echo PHP_MAJOR_VERSION.PHP_MINOR_VERSION;") \
+#    && architecture=$(uname -m) \
+#    && curl -A "Docker" -o /tmp/blackfire-probe.tar.gz -D - -L -s https://blackfire.io/api/v1/releases/probe/php/linux/$architecture/$version \
+#    && mkdir -p /tmp/blackfire \
+#    && tar zxpf /tmp/blackfire-probe.tar.gz -C /tmp/blackfire \
+#    && mv /tmp/blackfire/blackfire-*.so $(php -r "echo ini_get ('extension_dir');")/blackfire.so \
+#    && rm -rf /tmp/blackfire /tmp/blackfire-probe.tar.gz
+
+#RUN #git clone --branch v0.4.15 --depth=1 https://github.com/NoiseByNorthwest/php-spx.git /usr/lib/php-spx \
+#    && cd /usr/lib/php-spx \
+#    && phpize \
+#    && ./configure \
+#    && make \
+#    && make install
+
+COPY conf/php.development.ini $PHP_INI_DIR/php.ini
