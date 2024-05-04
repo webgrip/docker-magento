@@ -4,7 +4,7 @@ on: workflow_dispatch
 
 jobs:
   nginx-1-18:
-    runs-on: ubuntu-latest
+    runs-on: webgrip-actions-runner
     steps:
       -
         name: Checkout
@@ -17,7 +17,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
       -
         name: Login to DockerHub
-        uses: docker/login-action@v3 
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -30,5 +30,4 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            markoshust/magento-nginx:1.24
-            markoshust/magento-nginx:1.24-0
+            webgrip/magento-nginx:1.24

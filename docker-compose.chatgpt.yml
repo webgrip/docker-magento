@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+
+  nginx:
+    image: nginx:latest
+    hostname: localhost
+    ports:
+      - "80:80"
+    volumes:
+      - ./src:/var/www/html:rw
+      - ./docker-compose/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - php-fpm
+    networks:
+      - magento
+
+  php-fpm:
+    build: ./docker-compose/php-fpm
+    user: www-data
+    ports:
+      - 9000
+      - 9003
+    volumes:
+      - ./src:/var/www/html:rw
+      - ~/.composer:/var/www/.composer
+      - ~/.ssh:/var/www/.ssh
+    depends_on:
+      - mysql
+      - redis
+      - opensearch
+    networks:
+      - magento
+    environment:
+      PHP_IDE_CONFIG: "serverName=localhost"
+
+  mysql:
+    image: mysql:8.0
+    ports:
+      - 3306
+    networks:
+      - magento
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./docker-compose/mysql/mysqld.cnf:/etc/mysql/mysql.conf.d/mysqld.cnf
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: magento2
+      MYSQL_USER: magento2
+      MYSQL_PASSWORD: magento2
+
+  opensearch:
+    build: ./docker-compose/opensearch
+    ports:
+      - 9200
+    networks:
+      - magento
+    volumes:
+      - opensearch-data:/usr/share/elasticsearch/data
+    environment:
+      ES_JAVA_OPTS: "-Xms2048m -Xmx2048m -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -Xss1m"
+      OPENSEARCH_JAVA_OPTS: "-Xms2048m -Xmx2048m"
+      discovery.type: single-node
+      cluster.routing.allocation.disk.threshold_enabled: false
+      script.painless.regex.enabled: true
+      bootstrap.memory_lock: true
+      network.host: 0.0.0.0
+      cluster.name: opensearch-cluster
+      node.name: opensearch-node1
+
+  redis:
+    image: redis:7.0
+    ports:
+      - 6379
+    networks:
+      - magento
+
+  varnish:
+    build:
+      context: ./docker-compose/varnish
+    depends_on:
+      - nginx
+    networks:
+      - magento
+    ports:
+      - "6081:6081"
+    volumes:
+      - ./docker-compose/varnish/default.vcl:/etc/varnish/default.vcl:ro
+
+networks:
+  magento:
+    driver: bridge
+
+volumes:
+  mysql-data:
+  opensearch-data:

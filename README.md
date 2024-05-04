@@ -41,7 +41,7 @@ View Dockerfiles for the latest tags:
   - [`2.12`, `2.12-0`](images/opensearch/2.12)
 - [markoshust/magento-elasticsearch (Docker Hub)](https://hub.docker.com/r/markoshust/magento-elasticsearch/)
   - [`7.16`, `7.16-0`](images/elasticsearch/7.16)
-  - [`7.17`, `7.17-1`](images/elasticsearch/7.17)
+  - [`7.17`, `7.17-1`](images/elasticsearch/7.17.19)
   - [`8.4`, `8.4-0`](images/elasticsearch/8.4)
   - [`8.5`, `8.5-0`](images/elasticsearch/8.5)
   - [`8.7`, `8.7-0`](images/elasticsearch/8.7)

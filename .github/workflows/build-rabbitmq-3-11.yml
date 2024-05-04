@@ -4,7 +4,7 @@ on: workflow_dispatch
 
 jobs:
   rabbitmq-3-11:
-    runs-on: ubuntu-latest
+    runs-on: webgrip-actions-runner
     steps:
       -
         name: Checkout
@@ -30,5 +30,4 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            markoshust/magento-rabbitmq:3.11
-            markoshust/magento-rabbitmq:3.11-1
+            webgrip/magento-rabbitmq:3.11

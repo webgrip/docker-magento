@@ -4,7 +4,7 @@ on: workflow_dispatch
 
 jobs:
   elasticsearch-8-5:
-    runs-on: ubuntu-latest
+    runs-on: webgrip-actions-runner
     steps:
       -
         name: Checkout
@@ -30,5 +30,4 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            markoshust/magento-elasticsearch:8.5
-            markoshust/magento-elasticsearch:8.5-0
+            webgrip/magento-elasticsearch:8.5
