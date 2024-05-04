@@ -1,4 +1,4 @@
-name: build-php-8-3
+name: build-varnish-7-5-0-alpine
 
 on:
   push:
@@ -33,4 +33,4 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            webgrip/magento-varnish:7.5.0
+            webgrip/magento-varnish:7.5.0-alpine
