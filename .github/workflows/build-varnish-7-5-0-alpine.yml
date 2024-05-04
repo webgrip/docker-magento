@@ -6,7 +6,7 @@ on:
       - feature/webgrip
 
 jobs:
-  php-8-3:
+  varnish-7-5-0-alpine:
     runs-on: self-hosted
     steps:
       -
