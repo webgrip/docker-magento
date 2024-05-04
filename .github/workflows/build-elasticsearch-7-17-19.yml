@@ -30,4 +30,4 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            markoshust/magento-elasticsearch:7.17.19
+            webgrip/magento-elasticsearch:7.17.19

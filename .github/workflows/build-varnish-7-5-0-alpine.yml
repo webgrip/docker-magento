@@ -2,8 +2,12 @@ name: build-varnish-7-5-0-alpine
 
 on:
   push:
+    paths:
+      - Dockerfile.base
+      - .github/workflows/build-varnish-7-5-0-alpine.yml
     branches:
       - feature/webgrip
+  workflow_dispatch:
 
 jobs:
   varnish-7-5-0-alpine:

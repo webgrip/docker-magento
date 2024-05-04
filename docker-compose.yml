@@ -40,7 +40,6 @@ services:
 
   php-fpm:
     image: webgrip/magento-php:8.2-fpm
-    env_file: docker/env/phpfpm.env
     ports:
       - 9000
       - 9003
@@ -79,28 +78,28 @@ services:
   #    volumes:
   #      - dbdata:/var/lib/mysql
 
-  #  opensearch:
-  #    image: webgrip/magento-opensearch:2.5
-  #    build:
-  #      context: ./images/opensearch/2.5
-  #      dockerfile: Dockerfile
-  #    ports:
-  #      - "9200:9200"
-  #      - "9300:9300"
-  #    volumes:
-  #      - opensearch-data:/usr/share/elasticsearch/data
-  #    environment:
-  #      ES_JAVA_OPTS: "-Xms2048m -Xmx2048m -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -Xss1m"
-  #      OPENSEARCH_JAVA_OPTS: "-Xms2048m -Xmx2048m"
-  #      discovery.type: single-node
-  #      cluster.routing.allocation.disk.threshold_enabled: false
-  #      script.painless.regex.enabled: true
-  #      bootstrap.memory_lock: true
-  #      network.host: 0.0.0.0
-  #      cluster.name: opensearch-cluster
-  #      node.name: opensearch-node1
-  #      index.blocks.read_only_allow_delete: true
-  #      # max_map_count: 262144 ## Uncomment the following line to increase the virtual memory map count
+  opensearch:
+    image: webgrip/magento-opensearch:2.5
+    build:
+      context: ./images/opensearch/2.5
+      dockerfile: Dockerfile
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - opensearch-data:/usr/share/elasticsearch/data
+    environment:
+      ES_JAVA_OPTS: "-Xms2048m -Xmx2048m -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -Xss1m"
+      OPENSEARCH_JAVA_OPTS: "-Xms2048m -Xmx2048m"
+      discovery.type: single-node
+      cluster.routing.allocation.disk.threshold_enabled: false
+      script.painless.regex.enabled: true
+      bootstrap.memory_lock: true
+      network.host: 0.0.0.0
+      cluster.name: opensearch-cluster
+      node.name: opensearch-node1
+      index.blocks.read_only_allow_delete: true
+      # max_map_count: 262144 ## Uncomment the following line to increase the virtual memory map count
 
   redis:
     image: redis:7.0-alpine
@@ -117,7 +116,6 @@ services:
     ports:
       - "9200:9200"
       - "9300:9300"
-    env_file: docker/env/elasticsearch.env
     environment:
       - "discovery.type=single-node"
       ## Avoid test failures due to small disks
@@ -134,7 +132,6 @@ services:
       - "5672:5672"
     volumes:
       - rabbitmqdata:/var/lib/rabbitmq
-    env_file: docker/env/rabbitmq.env
 
   mailcatcher:
     image: sj26/mailcatcher
@@ -171,7 +168,7 @@ services:
 
 
   varnish:
-    image: webgrip/magento-varnish:6.0
+    image: webgrip/mmagento-varnish:7.5.0-alpine
     container_name: varnish
     build:
       context: ./images/varnish/7.5.0-alpine
@@ -201,5 +198,5 @@ volumes:
 
 networks:
   default:
-    magento:
-        external: true
+    external: true
+    name: magento
