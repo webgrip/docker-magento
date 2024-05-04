@@ -1,110 +1,148 @@
-FROM php:8.2-fpm-bookworm
-MAINTAINER Mark Shust <mark@shust.com>
+# Base stage for common setup
+FROM php:8.2-fpm-alpine AS base
+LABEL maintainer="Ryan Grippeling <ryan@webgrip.com>"
 
-ARG APP_ID=1000
-RUN groupadd -g "$APP_ID" app \
-  && useradd -g "$APP_ID" -u "$APP_ID" -d /var/www -s /bin/bash app
+# Set PHP extensions versions via ARG to ensure they're available in all stages
+ARG IMAGICK_VERSION=3.7.0
+ARG REDIS_VERSION=6.0.2
+ARG SSH2_VERSION=1.3.1
 
-RUN mkdir -p /etc/nginx/html /var/www/html /sock \
-  && chown -R app:app /etc/nginx /var/www /usr/local/etc/php/conf.d /sock
+# Environment configuration for consistent user setup across stages
+ENV APP_USER=www-data \
+    APP_GROUP=www-data \
+    APP_UID=1000 \
+    APP_GID=1000
 
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+RUN addgroup -g "${APP_GID}" "${APP_GROUP}" && \
+    adduser -G "${APP_GROUP}" -u "${APP_UID}" -h /var/www -s /bin/bash -S "${APP_USER}"
 
-RUN apt-get update && apt-get install -y \
-    cron \
-    default-mysql-client \
-    git \
-    gnupg \
-    gzip \
-    libbz2-dev \
-    libfreetype6-dev \
-    libicu-dev \
-    libjpeg62-turbo-dev \
-    libmagickwand-dev \
-    libmcrypt-dev \
-    libonig-dev \
+# Builder stage to compile and install PHP extensions
+FROM base AS builder
+
+# Install packages required for building PHP extensions
+#RUN apk --no-cache add autoconf g++ make bash curl libpng-dev libjpeg-turbo-dev libwebp-dev \
+#    gettext-dev icu-dev libxslt-dev zlib-dev libzip-dev freetype-dev bzip2-dev \
+#    linux-headers oniguruma-dev libsodium-dev openssl-dev pcre-dev \
+#    imagemagick imagemagick-dev libssh2 libssh2-dev php-redis#
+
+RUN apk --no-cache add \
+    autoconf \
+    bash \
+    bzip2 \
+    bzip2-dev \
+    curl \
+    freetype \
+    freetype-dev \
+    g++ \
+    gettext \
+    gettext-dev \
+    icu \
+    icu-dev \
+    imagemagick \
+    imagemagick-dev \
+    libbz2 \
+    libintl \
+    libjpeg-turbo \
+    libjpeg-turbo-dev \
+    libpng \
     libpng-dev \
+    libsodium \
     libsodium-dev \
-    libssh2-1-dev \
+    libssh2 \
+    libssh2-dev \
+    libwebp \
     libwebp-dev \
-    libxslt1-dev \
+    libxslt \
+    libxslt-dev \
+    libzip \
     libzip-dev \
-    lsof \
-    mailutils \
-    msmtp \
-    nodejs \
-    procps \
-    strace \
-    vim \
-    zip \
-    zlib1g-dev \
-  && rm -rf /var/lib/apt/lists/*
+    linux-headers \
+    make \
+    oniguruma \
+    oniguruma-dev \
+    openssl \
+    openssl-dev \
+    pcre \
+    pcre-dev \
+    php-redis \
+    zlib \
+    zlib-dev ##libicu libexslt
 
-RUN pecl channel-update pecl.php.net && pecl install \
-    imagick-3.7.0 \
-    redis-6.0.2 \
-    ssh2-1.3.1 \
-    xdebug-3.3.1 \
-  && pecl clear-cache \
-  && rm -rf /tmp/pear
+# Configure PHP extensions to use support for additional libraries
+RUN docker-php-ext-configure gd --with-jpeg --with-freetype --with-webp && \
+    docker-php-ext-configure intl && \
+    docker-php-ext-configure gettext
 
-RUN docker-php-ext-configure \
-    gd --with-freetype --with-jpeg --with-webp \
-  && docker-php-ext-install \
+# Install PHP extensions
+RUN docker-php-ext-install -j"$(nproc)"  \
     bcmath \
     bz2 \
     calendar \
+    ctype \
+    dom \
     exif \
+    fileinfo \
+    filter \
     gd \
     gettext \
     intl \
     mbstring \
-    mysqli \
     opcache \
-    pcntl \
     pdo_mysql \
+    simplexml \
     soap \
     sockets \
     sodium \
     sysvmsg \
     sysvsem \
     sysvshm \
+    xmlwriter \
     xsl \
-    zip \
-  && docker-php-ext-enable \
-    imagick \
-    redis \
-    ssh2 \
-    xdebug
+    zip
 
-RUN version=$(php -r "echo PHP_MAJOR_VERSION.PHP_MINOR_VERSION;") \
-    && architecture=$(uname -m) \
-    && curl -A "Docker" -o /tmp/blackfire-probe.tar.gz -D - -L -s https://blackfire.io/api/v1/releases/probe/php/linux/$architecture/$version \
-    && mkdir -p /tmp/blackfire \
-    && tar zxpf /tmp/blackfire-probe.tar.gz -C /tmp/blackfire \
-    && mv /tmp/blackfire/blackfire-*.so $(php -r "echo ini_get ('extension_dir');")/blackfire.so \
-    && rm -rf /tmp/blackfire /tmp/blackfire-probe.tar.gz
+# Install and enable PECL extensions
+RUN pecl install \
+    imagick-${IMAGICK_VERSION} \
+    redis-${REDIS_VERSION} \
+    ssh2-${SSH2_VERSION} && \
+    pecl clear-cache
 
-RUN git clone --branch v0.4.15 --depth=1 https://github.com/NoiseByNorthwest/php-spx.git /usr/lib/php-spx \
-    && cd /usr/lib/php-spx \
-    && phpize \
-    && ./configure \
-    && make \
-    && make install
+# Enable installed PHP extensions
+RUN docker-php-ext-enable imagick redis ssh2
 
+# Copy PHP configuration files from project directory
+FROM builder AS composer
 RUN curl -sS https://getcomposer.org/installer | \
-  php -- --version=2.6.6 --install-dir=/usr/local/bin --filename=composer
+  php -- --version=2.7.2 --install-dir=/usr/local/bin --filename=composer
 
-COPY conf/blackfire.ini $PHP_INI_DIR/conf.d/blackfire.ini
-COPY conf/spx.ini $PHP_INI_DIR/conf.d/spx.ini
+# Deployment stage copies built extensions and binaries to a lean production image
+FROM base AS production
+
+# Copy installed PHP extensions from builder stage
+COPY --from=builder /usr/local/lib/php/extensions /usr/local/lib/php/extensions
+COPY --from=builder /usr/local/etc/php/conf.d /usr/local/etc/php/conf.d
+COPY --from=builder /usr/lib/ /usr/lib/
+
+# Set appropriate permissions and ownership TODO - check if this is necessary
+RUN chown -R ${APP_USER}:${APP_GROUP} /usr/local/lib/php/extensions
+
+# Copy Composer binary from composer stage
+COPY --from=composer /usr/local/bin/composer /usr/local/bin/composer
+
+# Copy configuration files
 COPY conf/msmtprc /etc/msmtprc
-COPY conf/php.ini $PHP_INI_DIR
 COPY conf/php-fpm.conf /usr/local/etc/
 COPY conf/www.conf /usr/local/etc/php-fpm.d/
 
-USER app:app
+COPY conf/php.production.ini $PHP_INI_DIR/php.ini
+
+# Switch to non-root user for security
+USER "${APP_USER}:${APP_GROUP}"
+
+# Define volume for application mount and set working directory
 VOLUME /var/www
 WORKDIR /var/www/html
 
 FROM production as development
-USER root:root
+
+COPY conf/php.development.ini $PHP_INI_DIR/php.ini
