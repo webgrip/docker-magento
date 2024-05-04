@@ -4,7 +4,7 @@ on:
   push:
     paths:
       - Dockerfile.base
-      - .github/workflows/build-varnish-7-5-0-alpine.yml
+      - .github/workflows/build-elasticsearch-7-17-19.yml
     branches:
       - feature/webgrip
   workflow_dispatch:
