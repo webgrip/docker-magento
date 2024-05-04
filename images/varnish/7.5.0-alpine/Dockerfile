@@ -1,5 +1,5 @@
 # Dockerfile
-FROM alpine:7.5.0
+FROM alpine:3.19.1
 
 # Install Varnish using Alpine's package manager without any cache
 RUN apk add --no-cache varnish
