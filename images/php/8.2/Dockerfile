@@ -8,8 +8,8 @@ ARG REDIS_VERSION=6.0.2
 ARG SSH2_VERSION=1.3.1
 
 # Environment configuration for consistent user setup across stages
-ENV APP_USER=www-data \
-    APP_GROUP=www-data \
+ENV APP_USER=app \
+    APP_GROUP=app \
     APP_UID=1000 \
     APP_GID=1000
 

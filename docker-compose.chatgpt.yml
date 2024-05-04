@@ -17,7 +17,7 @@ services:
 
   php-fpm:
     build: ./docker-compose/php-fpm
-    user: www-data
+    user: app
     ports:
       - 9000
       - 9003
