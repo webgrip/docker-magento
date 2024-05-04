@@ -1,6 +1,13 @@
 name: build-elasticsearch-7-17-19
 
-on: workflow_dispatch
+on:
+  push:
+    paths:
+      - Dockerfile.base
+      - .github/workflows/build-varnish-7-5-0-alpine.yml
+    branches:
+      - feature/webgrip
+  workflow_dispatch:
 
 jobs:
   elasticsearch-7-17-19:
