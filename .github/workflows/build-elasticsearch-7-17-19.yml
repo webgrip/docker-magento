@@ -4,7 +4,7 @@ on: workflow_dispatch
 
 jobs:
   elasticsearch-7-17-19:
-    runs-on: webgrip-actions-runner
+    runs-on: [self-hosted, Linux, X64]
     steps:
       -
         name: Checkout

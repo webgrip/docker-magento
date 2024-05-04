@@ -4,7 +4,7 @@ on: workflow_dispatch
 
 jobs:
   php-8-1:
-    runs-on: webgrip-actions-runner
+    runs-on: [self-hosted, Linux, X64]
     steps:
       -
         name: Checkout

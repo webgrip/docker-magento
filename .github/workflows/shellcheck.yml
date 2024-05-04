@@ -14,7 +14,7 @@ on:
 jobs:
   shellcheck:
     name: shellcheck
-    runs-on: webgrip-actions-runner
+    runs-on: [self-hosted, Linux, X64]
     steps:
 
     - name: Checkout
