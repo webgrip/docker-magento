@@ -3,8 +3,8 @@ name: build-elasticsearch-7-17-19
 on:
   push:
     paths:
-      - Dockerfile.base
       - .github/workflows/build-elasticsearch-7-17-19.yml
+      - images/elasticsearch/7.17.19/**
     branches:
       - feature/webgrip
   workflow_dispatch:

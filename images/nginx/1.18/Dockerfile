@@ -23,7 +23,7 @@ RUN apk add --no-cache openssl && \
 # Production-ready configuration
 FROM base AS production
 COPY ./conf/nginx.production.conf /etc/nginx/nginx.conf
-COPY ./conf/default.production.conf /etc/nginx/conf.d/
+COPY ./conf/default.production.conf /etc/nginx/conf.d/default.conf
 EXPOSE 443
 USER "${APP_USER}":"${APP_GROUP}"
 VOLUME /var/www
@@ -49,7 +49,7 @@ COPY --from=mkcert-installer /usr/local/share/ca-certificates/mkcert /usr/local/
 
 # Copy development-specific Nginx configuration
 COPY ./conf/nginx.development.conf /etc/nginx/nginx.conf
-COPY ./conf/default.development.conf /etc/nginx/conf.d/
+COPY ./conf/default.development.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 443
 USER "${APP_USER}":"${APP_GROUP}"

@@ -1,6 +1,13 @@
 name: build-nginx-1-18
 
-on: workflow_dispatch
+on:
+  push:
+    paths:
+      - .github/workflows/build-nginx-1-18.yml
+      - images/nginx/1.18/**
+    branches:
+      - feature/webgrip
+  workflow_dispatch:
 
 jobs:
   nginx-1-18:

@@ -1,6 +1,5 @@
 # Very advanced implementation of default.vcl for a magento production server
 
-
 vcl 4.1;
 
 import std;
@@ -53,6 +52,17 @@ sub vcl_backend_response {
     if (bereq.http.cookie ~ "PHPSESSID") {
         unset beresp.http.set-cookie;
     }
+
+    # Cache images and AVIF files
+    if (bereq.url ~ "\.(jpeg|jpg|png|gif|ico|svg|avif)$") {
+        set beresp.ttl = 1w;  # Cache for 1 week
+        set beresp.http.Cache-Control = "public, max-age=604800";  # 1 week in seconds
+    }
+
+    # Strip all cookies except the essentials
+    if (bereq.http.cookie) {
+        set bereq.http.cookie = regsuball(bereq.http.cookie, "(^|;\s*)(_[_a-z]+|has_js)=[^;]*", "");
+    }
 }
 
 sub vcl_deliver {
@@ -62,21 +72,4 @@ sub vcl_deliver {
     else {
         set resp.http.X-Cache = "MISS";
     }
-}
-
-sub vcl_backend_response {
-    # Cache images and AVIF files
-    if (bereq.url ~ "\.(jpeg|jpg|png|gif|ico|svg|avif)$") {
-        set beresp.ttl = 1w;  # Cache for 1 week
-        set beresp.http.Cache-Control = "public, max-age=604800";  # 1 week in seconds
-    }
-
-    # Existing code...
-    if (bereq.http.cookie ~ "PHPSESSID") {
-        unset beresp.http.set-cookie;
-    }
-}
-# Not sure about this
-if (bereq.http.cookie) {
-    set bereq.http.cookie = regsuball(bereq.http.cookie, "(^|;\s*)(_[_a-z]+|has_js)=[^;]*", "");  // Strip all cookies except the essentials
 }
